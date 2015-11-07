@@ -41,16 +41,13 @@ func main() {
 func handleConnection(connection net.Conn, messageChannel chan<- string, addChannel chan<- Client, removeChannel chan<- Client) {
 	bufioConnection := bufio.NewReader(connection)
 
+	defer connection.Close()
+
 	client := Client{
 		connection: connection,
 		username: getUsername(connection, bufioConnection),
 		channel: make(chan string),
 	}
-
-	// Allow a user to quit the chat
-	defer func() {
-		removeChannel <- client
-	}()
 
 	if strings.TrimSpace(client.username) == "" {
 		io.WriteString(connection, "Invalid username\n")
@@ -59,6 +56,13 @@ func handleConnection(connection net.Conn, messageChannel chan<- string, addChan
 	}
 
 	addChannel <- client
+
+	// Allow a user to quit the chat
+	defer func() {
+		fmt.Printf("Sair")
+		messageChannel <- fmt.Sprint("Connection from %v closed.\n", client.connection.RemoteAddr())
+		removeChannel <- client
+	}()
 
 	io.WriteString(connection, fmt.Sprintf("Welcome, %s!\n\n", client.username))
 	messageChannel <- fmt.Sprintf("New user %s has joined the chat room.\n", client.username)
@@ -75,8 +79,8 @@ func handleMessages(messageChannel <- chan string, addChannel <- chan Client, re
 		select {
 		case message := <- messageChannel:
 			fmt.Printf("%v", message)
-			for _, ch := range clients {
-				go func(mch chan <- string) { mch <- "\033[1;33;40m" + message + "\033[m\r\n" } (ch)
+			for _, channel := range clients {
+				go func(messageCh chan <- string) { messageCh <- "\033[1;33;40m" + message + "\033[m\r\n" } (channel)
 			}
 		case client := <- addChannel:
 			fmt.Printf("New client: %v \n", client.connection.RemoteAddr())
